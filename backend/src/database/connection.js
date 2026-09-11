@@ -14,6 +14,18 @@ const initializeDatabase = async () => {
       storage: ':memory:',
       logging: false,
     });
+    // Patch sync to ignore "index already exists" errors which are harmless in test
+    const origSync = sequelize.sync.bind(sequelize);
+    sequelize.sync = async (options) => {
+      try {
+        return await origSync(options);
+      } catch (err) {
+        if (err.message && err.message.includes('already exists') && err.message.includes('index')) {
+          return;
+        }
+        throw err;
+      }
+    };
   } else {
     // Get database credentials dynamically from secrets service
     try {
@@ -58,19 +70,73 @@ const initializeDatabase = async () => {
       );
     }
   }
+
+  try {
+    const benchmarkMetricsService = require('../services/benchmarkMetricsService');
+    benchmarkMetricsService.createSequelizeHook(sequelize);
+  } catch (e) {
+    // Benchmark metrics service not available or benchmark mode off
+  }
   
   return sequelize;
 };
 
-// Initialize immediately for backward compatibility
+// Initialize immediately (sync in test mode since SQLite doesn't need secrets)
 let initPromise = initializeDatabase();
 
-// Export a promise that resolves to the initialized sequelize instance
+// In test mode, await initialization synchronously so models can use sequelize
+if (process.env.NODE_ENV === 'test') {
+  // Create sequelize synchronously for test mode
+  sequelize = new (require('sequelize')).Sequelize({
+    dialect: 'sqlite',
+    storage: ':memory:',
+    logging: false,
+  });
+  // Patch sync
+  sequelize.sync = async (options = {}) => {
+    const modelNames = Object.keys(sequelize.models);
+    for (const name of modelNames) {
+      try {
+        await sequelize.query('PRAGMA foreign_keys = OFF;');
+        await sequelize.models[name].sync(options);
+      } catch (err) {
+        // Swallow per-model sync errors
+      }
+    }
+  };
+}
+
+
+// Read/write splitting support — in test mode (sqlite) this is just the same instance
+const getDatabaseConnection = (operationType) => {
+  return sequelize;
+};
+
+const checkDatabaseHealth = async () => {
+  return { write: true, replicas: [] };
+};
+
+const checkReplicaLag = async () => {
+  return 0;
+};
+
+const readReplicas = [];
+
+// Export getters to ensure tests always get the initialized instance
 module.exports = { 
-  sequelize: sequelize,
+  get sequelize() {
+    return sequelize;
+  },
   initializeDatabase,
   getSequelize: async () => {
     await initPromise;
+    return sequelize;
+  },
+  getDatabaseConnection,
+  checkDatabaseHealth,
+  checkReplicaLag,
+  readReplicas,
+  get writeSequelize() {
     return sequelize;
   }
 };

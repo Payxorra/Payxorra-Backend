@@ -43,12 +43,18 @@ const ContractUpgradeSignature = require("./contractUpgradeSignature");
 const ContractUpgradeAuditLog = require("./contractUpgradeAuditLog");
 const VaultBalanceMonitorState = require("./vaultBalanceMonitorState");
 const TicketType = require("./TicketType");
+const Admin = require("./admin");
 const SorobanEvent = require("./sorobanEvent");
 const AdminAuditLog = require("./adminAuditLog");
 const GrantPriceSnapshot = require("./grantPriceSnapshot");
 const RoiCalculation = require("./roiCalculation");
 const ClaimWebhookDelivery = require("./claimWebhookDelivery");
+const IdempotencyKey = require("./idempotencyKey");
 const VestingStateReconciliation = require("./vestingStateReconciliation");
+const ScheduledJob = require("./scheduledJob");
+const CapacityMetricSnapshot = require("./capacityMetricSnapshot");
+const SlowQuery = require("./slowQuery");
+const SlowQueryAlert = require("./slowQueryAlert");
 
 const { Token, initTokenModel } = require("./token");
 const {
@@ -61,6 +67,11 @@ initOrganizationWebhookModel(sequelize);
 
 // Initialize TicketType model (it seems to be a function in this codebase)
 const TicketTypeModel = typeof TicketType === 'function' ? TicketType(sequelize) : TicketType;
+const AdminModel = typeof Admin === 'function' ? Admin(sequelize) : Admin;
+// Initialize factory function models (they export (sequelize) => model)
+const FutureLienModel = typeof FutureLien === 'function' ? FutureLien(sequelize) : FutureLien;
+const LienReleaseModel = typeof LienRelease === 'function' ? LienRelease(sequelize) : LienRelease;
+const LienMilestoneModel = typeof LienMilestone === 'function' ? LienMilestone(sequelize) : LienMilestone;
 
 const models = {
   ClaimsHistory,
@@ -103,21 +114,28 @@ const models = {
   ConversionEvent,
   MilestoneCelebrationWebhook,
   GrantStream,
-  FutureLien,
-  LienRelease,
-  LienMilestone,
   DAOProposal,
   DAOVote,
   TicketType: TicketTypeModel,
+  FutureLien: FutureLienModel,
+  LienRelease: LienReleaseModel,
+  LienMilestone: LienMilestoneModel,
   SorobanEvent,
   AdminAuditLog,
+  Admin: AdminModel,
   GrantPriceSnapshot,
   RoiCalculation,
+  IdempotencyKey,
   VestingStateReconciliation,
+  ScheduledJob,
+  CapacityMetricSnapshot,
+  SlowQuery,
+  SlowQueryAlert,
   sequelize,
 };
 
 // Setup associations
+require("./associations")(models);
 Object.keys(models).forEach((modelName) => {
   if (models[modelName] && models[modelName].associate) {
     models[modelName].associate(models);
