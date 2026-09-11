@@ -20,7 +20,8 @@ class AuthService {
     const payload = {
       address: userAddress,
       role: role,
-      type: 'access'
+      type: 'access',
+      jti: Date.now().toString(36) + Math.random().toString(36).substring(2)
     };
 
     return jwt.sign(payload, process.env.JWT_SECRET, {

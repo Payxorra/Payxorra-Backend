@@ -5,17 +5,13 @@ description = "Merkle tree-based vesting airdrops - single root, claim with proo
 edition = "2021"
 
 [lib]
-crate-type = ["cdylib"]
+crate-type = ["cdylib", "rlib"]
 
 [dependencies]
-soroban-sdk = "22.0"
+soroban-sdk = { workspace = true }
 
-[profile.release]
-opt-level = "z"
-lto = "fat"
-codegen-units = 1
-strip = "symbols"
+[dev-dependencies]
+soroban-sdk = { workspace = true, features = ["testutils"] }
 
-[profile.release-with-logging]
-inherits = "release"
-strip = "none"
+[features]
+testutils = ["soroban-sdk/testutils"]
